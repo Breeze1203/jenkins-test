@@ -1,69 +1,84 @@
+// 用于构建和部署 Spring Boot + Vue 应用的 Jenkinsfile (本地部署)
 
 pipeline {
+    // 1. 定义在哪里执行
     agent any
 
+    // 2. 定义需要什么工具 (与 agent 平级)
     tools {
-       nodejs 'NodeJS-16'
+        // 这行代码现在会去查找您在 Jenkins Tools 中配置的 NodeJS-16
+        nodejs 'NodeJS-16'
     }
 
-    // --- 全局环境变量 ---
+    // 3. 定义环境变量
     environment {
-        // 后端jar包的存放路径
+        // 后端 jar 包的部署路径
         BACKEND_DEPLOY_PATH = '/home/user/app/backend'
-        // 前端静态文件的存放路径 (Nginx的网站根目录)
+        // 前端静态文件的部署路径 (Nginx 的网站根目录)
         FRONTEND_DEPLOY_PATH = '/var/www/my-app'
     }
 
+    // 4. 定义阶段
     stages {
         // 阶段 1: 拉取代码
         stage('Checkout') {
             steps {
-                echo 'Checking out source code from Git...'
+                echo '从 Git 仓库拉取源代码...'
                 checkout scm
             }
         }
+
         // 阶段 2: 构建后端
         stage('Build Backend') {
             steps {
                 dir('backend') {
-                    echo "Building Spring Boot application..."
+                    echo "正在构建 Spring Boot 应用..."
                     sh 'mvn clean package -DskipTests'
                 }
             }
         }
 
-        // 阶段 3: 构建前端
+        // 阶段 3: 构建前端 (现在会使用 Node.js v16)
         stage('Build Frontend') {
             steps {
                 dir('frontend') {
-                    echo "Building Vue.js application..."
+                    echo "正在构建 Vue.js 应用..."
+                    // 打印版本以确认
+                    sh 'node -v'
+                    sh 'npm -v'
+                    // 安装依赖并构建
                     sh 'npm install'
                     sh 'npm run build'
                 }
             }
         }
 
-        // 阶段 4: 部署到本机
+        // 阶段 4: 本地部署
         stage('Deploy Locally') {
             steps {
                 script {
-                    echo "Deploying backend artifact locally..."
+                    // --- 准备部署目录 ---
+                    echo "正在准备部署目录..."
+                    // 使用 mkdir -p 安全地创建目录，如果目录已存在则什么也不做
+                    sh "mkdir -p ${BACKEND_DEPLOY_PATH}"
+                    sh "mkdir -p ${FRONTEND_DEPLOY_PATH}"
+
+                    // --- 部署后端 ---
+                    echo "正在本地部署后端构建产物..."
                     def jarFile = findFiles(glob: 'backend/target/*.jar')[0]
-                    // 使用 cp 命令将 jar 文件复制到本地部署目录
                     sh "cp ${jarFile.path} ${BACKEND_DEPLOY_PATH}/app.jar"
+
                     // --- 部署前端 ---
-                    echo "Deploying frontend artifacts locally..."
-                    // 删除旧的前端文件
+                    echo "正在本地部署前端构建产物..."
                     sh "rm -rf ${FRONTEND_DEPLOY_PATH}/*"
-                    // 使用 cp 命令将构建好的 dist 目录内容复制到 Nginx 网站目录
                     sh "cp -r frontend/dist/* ${FRONTEND_DEPLOY_PATH}/"
+
                     // --- 重启后端服务 ---
-                    echo "Restarting backend service..."
-                    // 停止旧的后端服务 (|| true 确保即使没有找到进程也不会报错)
+                    echo "正在重启后端服务..."
                     sh "pkill -f 'java -jar ${BACKEND_DEPLOY_PATH}/app.jar' || true"
-                    // 启动新的后端服务
                     sh "nohup java -jar ${BACKEND_DEPLOY_PATH}/app.jar > /dev/null 2>&1 &"
-                    echo "--- Local Deployment successful! ---"
+
+                    echo "--- 本地部署成功! ---"
                 }
             }
         }
