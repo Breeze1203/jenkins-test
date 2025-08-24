@@ -1,12 +1,10 @@
 
 pipeline {
-    agent {
-            any
-            tools {
-                // 使用您在 Jenkins 工具中配置的、名为 'NodeJS-16' 的 NodeJS 安装
-                nodejs 'NodeJS-16'
-            }
-        }
+    agent any
+
+    tools {
+       nodejs 'NodeJS-16'
+    }
 
     // --- 全局环境变量 ---
     environment {
