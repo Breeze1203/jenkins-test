@@ -1,42 +1,67 @@
+
 pipeline {
     agent any
 
+    // --- 全局环境变量 ---
+    environment {
+        // 后端jar包的存放路径
+        BACKEND_DEPLOY_PATH = '/home/user/app/backend'
+        // 前端静态文件的存放路径 (Nginx的网站根目录)
+        FRONTEND_DEPLOY_PATH = '/var/www/my-app'
+    }
+
     stages {
-        // 第一个阶段：Build
-        stage('Build') {
+        // 阶段 1: 拉取代码
+        stage('Checkout') {
             steps {
-                echo 'Gathering tool versions...'
-                // 使用 sh (shell) 步骤来执行命令
-                // 1. 输出一个标题到 version_info.txt 文件 (>) 会创建或覆盖文件
-                // 2. 将 java -version 的输出追加到文件 (>>)
-                //    注意: java -version 通常输出到标准错误(stderr), 所以用 2>&1 将其重定向到标准输出(stdout)
-                sh 'echo "--- Tool Versions Report ---" > version_info.txt'
-                sh 'java -version >> version_info.txt 2>&1'
+                echo 'Checking out source code from Git...'
+                checkout scm
+            }
+        }
+        // 阶段 2: 构建后端
+        stage('Build Backend') {
+            steps {
+                dir('backend') {
+                    echo "Building Spring Boot application..."
+                    sh 'mvn clean package -DskipTests'
+                }
             }
         }
 
-        // 第二个阶段：Test
-        stage('Test') {
+        // 阶段 3: 构建前端
+        stage('Build Frontend') {
             steps {
-                echo 'Gathering more tool versions...'
-                // 将 mvn 和 git 的版本信息追加到同一个文件中
-                sh 'mvn -version >> version_info.txt'
-                sh 'git --version >> version_info.txt'
+                dir('frontend') {
+                    echo "Building Vue.js application..."
+                    sh 'npm install'
+                    sh 'npm run build'
+                }
             }
         }
 
-        // 第三个阶段：Deploy (这里我们只用来展示最终结果)
-        stage('Deploy') {
+        // 阶段 4: 部署到本机
+        stage('Deploy Locally') {
             steps {
-                echo 'Finalizing and displaying the report.'
-                // 在文件末尾追加一条完成信息
-                sh 'echo "\n--- Report Generation Complete ---" >> version_info.txt'
-
-                // 为了方便在 Jenkins 日志中直接查看，我们把文件的最终内容打印出来
-                echo '--- Final Version Report ---'
-                sh 'cat version_info.txt'
+                script {
+                    echo "Deploying backend artifact locally..."
+                    def jarFile = findFiles(glob: 'backend/target/*.jar')[0]
+                    // 使用 cp 命令将 jar 文件复制到本地部署目录
+                    sh "cp ${jarFile.path} ${BACKEND_DEPLOY_PATH}/app.jar"
+                    // --- 部署前端 ---
+                    echo "Deploying frontend artifacts locally..."
+                    // 删除旧的前端文件
+                    sh "rm -rf ${FRONTEND_DEPLOY_PATH}/*"
+                    // 使用 cp 命令将构建好的 dist 目录内容复制到 Nginx 网站目录
+                    sh "cp -r frontend/dist/* ${FRONTEND_DEPLOY_PATH}/"
+                    // --- 重启后端服务 ---
+                    echo "Restarting backend service..."
+                    // 停止旧的后端服务 (|| true 确保即使没有找到进程也不会报错)
+                    sh "pkill -f 'java -jar ${BACKEND_DEPLOY_PATH}/app.jar' || true"
+                    // 启动新的后端服务
+                    sh "nohup java -jar ${BACKEND_DEPLOY_PATH}/app.jar > /dev/null 2>&1 &"
+                    echo "--- Local Deployment successful! ---"
+                }
             }
         }
     }
 }
-
