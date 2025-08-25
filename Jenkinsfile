@@ -6,7 +6,8 @@ pipeline {
 
     // 2. 定义需要什么工具 (与 agent 平级)
     tools {
-        // 这行代码会去查找您在 Jenkins Tools 中配置的 NodeJS-16
+        // **最终修正**: 同时指定 JDK 和 NodeJS 工具
+        jdk 'JDK-17'
         nodejs 'NodeJS-16'
     }
 
@@ -76,6 +77,7 @@ pipeline {
                     // --- 重启后端服务 ---
                     echo "正在重启后端服务..."
                     sh "pkill -f 'java -jar ${BACKEND_DEPLOY_PATH}/app.jar' || true"
+                    // 添加 BUILD_ID=dontKillMe 防止 Jenkins 终止进程
                     sh "(BUILD_ID=dontKillMe nohup java -jar ${BACKEND_DEPLOY_PATH}/app.jar > ${BACKEND_DEPLOY_PATH}/backend.log 2>&1 &)"
 
                     echo "--- 本地部署脚本执行完毕! ---"
