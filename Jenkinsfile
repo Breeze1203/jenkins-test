@@ -66,7 +66,7 @@ pipeline {
                         cd ${BACKEND_DEPLOY_PATH}
 
                         # 启动新进程
-                        BUILD_ID=dontKillMe nohup java -jar app.jar > backend.log 2>&1 & disown
+                        BUILD_ID=dontKillMe nohup java -jar app.jar > backend.log 2>&1 &
 
                         # 等待应用启动
                         echo "等待应用启动..."
