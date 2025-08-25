@@ -38,7 +38,7 @@ pipeline {
             }
         }
 
-        // 阶段 3: 构建前端 (现在会使用 Node.js v16)
+        // 阶段 3: 构建前端
         stage('Build Frontend') {
             steps {
                 dir('frontend') {
@@ -76,7 +76,6 @@ pipeline {
                     // --- 重启后端服务 ---
                     echo "正在重启后端服务..."
                     sh "pkill -f 'java -jar ${BACKEND_DEPLOY_PATH}/app.jar' || true"
-                    // **最终修正**: 添加 BUILD_ID=dontKillMe 防止 Jenkins 终止进程
                     sh "(BUILD_ID=dontKillMe nohup java -jar ${BACKEND_DEPLOY_PATH}/app.jar > ${BACKEND_DEPLOY_PATH}/backend.log 2>&1 &)"
 
                     echo "--- 本地部署脚本执行完毕! ---"
