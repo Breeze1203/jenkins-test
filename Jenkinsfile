@@ -77,7 +77,8 @@ pipeline {
                     // --- 重启后端服务 ---
                     echo "正在重启后端服务..."
                     sh "pkill -f 'java -jar ${BACKEND_DEPLOY_PATH}/app.jar' || true"
-                    // 添加 BUILD_ID=dontKillMe 防止 Jenkins 终止进程
+                    // **关键修正 1**: 添加 BUILD_ID=dontKillMe 防止 Jenkins 终止进程
+                    // **关键修正 2**: 将日志输出到文件，方便调试
                     sh "(BUILD_ID=dontKillMe nohup java -jar ${BACKEND_DEPLOY_PATH}/app.jar > ${BACKEND_DEPLOY_PATH}/backend.log 2>&1 &)"
 
                     echo "--- 本地部署脚本执行完毕! ---"
