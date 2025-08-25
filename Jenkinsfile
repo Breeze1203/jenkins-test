@@ -1,3 +1,5 @@
+// 用于构建和部署 Spring Boot + Vue 应用的 Jenkinsfile (本地部署)
+
 pipeline {
     agent any
 
@@ -7,6 +9,7 @@ pipeline {
     }
 
     environment {
+        // 明确设置 JAVA_HOME 和 PATH，这是一个非常好的实践
         JAVA_HOME = tool(name: 'JDK-17', type: 'jdk')
         PATH = "${JAVA_HOME}/bin:${env.PATH}"
         BACKEND_DEPLOY_PATH = '/home/user/app/backend'
@@ -59,29 +62,28 @@ pipeline {
                     sh "cp -r frontend/dist/* ${FRONTEND_DEPLOY_PATH}/"
 
                     echo "重启后端服务..."
-                    sh """
-                        # 杀掉旧进程
-                        pkill -f '${BACKEND_DEPLOY_PATH}/app.jar' || true
-                        sleep 2
-                        cd ${BACKEND_DEPLOY_PATH}
+                    sh "pkill -f '${BACKEND_DEPLOY_PATH}/app.jar' || true"
+                    sh "(BUILD_ID=dontKillMe nohup java -jar ${BACKEND_DEPLOY_PATH}/app.jar > ${BACKEND_DEPLOY_PATH}/backend.log 2>&1 &)"
 
-                        # 启动新进程
-                        BUILD_ID=dontKillMe nohup java -jar app.jar > backend.log 2>&1 &
-
-                        # 等待应用启动
-                        echo "等待应用启动..."
-                        for i in {1..10}; do
-                            if netstat -tulnp | grep -q ${BACKEND_PORT}; then
-                                echo "✅ 后端应用已成功启动，端口 ${BACKEND_PORT} 正在监听"
-                                exit 0
-                            fi
+                    // --- **关键修正**: 使用 Groovy 循环进行健康检查 ---
+                    echo "等待后端服务启动 (最多等待30秒)..."
+                    for (int i = 0; i < 10; i++) {
+                        // 使用 sh(returnStatus: true) 来捕获命令的退出码，而不是让流水线直接失败
+                        def status = sh(script: "netstat -tuln | grep -q ${BACKEND_PORT}", returnStatus: true)
+                        if (status == 0) {
+                            echo "✅ 后端服务已在端口 ${BACKEND_PORT} 上成功启动!"
+                            // 成功找到端口，跳出循环
+                            break
+                        }
+                        if (i < 9) {
+                            echo "检查失败，3秒后重试..."
                             sleep 3
-                        done
-
-                        echo "❌ 应用启动失败，请检查日志：${BACKEND_DEPLOY_PATH}/backend.log"
-                        tail -n 50 ${BACKEND_DEPLOY_PATH}/backend.log
-                        exit 1
-                    """
+                        } else {
+                            // 10次尝试后仍然失败，则使用 Jenkins 的 error 步骤来主动报错
+                            sh "tail -n 50 ${BACKEND_DEPLOY_PATH}/backend.log" // 在失败前打印日志
+                            error "❌ 后端服务在30秒内未能启动，请检查日志!"
+                        }
+                    }
 
                     echo "--- 本地部署脚本执行完毕! ---"
                 }
