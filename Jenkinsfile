@@ -63,7 +63,7 @@ pipeline {
 
                     echo "重启后端服务..."
                     sh "pkill -f '${BACKEND_DEPLOY_PATH}/app.jar' || true"
-                    sh "(BUILD_ID=dontKillMe nohup java -jar ${BACKEND_DEPLOY_PATH}/app.jar > ${BACKEND_DEPLOY_PATH}/backend.log 2>&1 &)"
+                    sh "(nohup java -jar ${BACKEND_DEPLOY_PATH}/app.jar > ${BACKEND_DEPLOY_PATH}/backend.log 2>&1 &)"
 
                     // --- **关键修正**: 使用 Groovy 循环进行健康检查 ---
                     echo "等待后端服务启动 (最多等待30秒)..."
